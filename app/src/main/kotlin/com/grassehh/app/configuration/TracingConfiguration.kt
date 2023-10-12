@@ -10,15 +10,32 @@ import io.netty.channel.ChannelDuplexHandler
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelPromise
 import jakarta.annotation.PostConstruct
+import kotlinx.coroutines.slf4j.MDCContext
+import kotlinx.coroutines.withContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.web.server.CoWebFilter
+import org.springframework.web.server.CoWebFilterChain
+import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilter
 import reactor.core.publisher.Hooks
 import reactor.netty.Metrics
 
 @Configuration
 class TracingConfiguration(private val observationRegistry: ObservationRegistry, private val tracer: Tracer) {
+
     @Bean
-    fun contextSnapshotFactory() = ContextSnapshotFactory.builder().build()
+    fun coroutineWebFilter(): WebFilter {
+        return object : CoWebFilter() {
+            override suspend fun filter(exchange: ServerWebExchange, chain: CoWebFilterChain)
+                    = withContext(MDCContext()) {
+                chain.filter(exchange)
+            }
+        }
+    }
+
+    @Bean
+    fun contextSnapshotFactory() = ContextSnapshotFactory.builder().build();
 
     @PostConstruct
     fun postConstruct() {
